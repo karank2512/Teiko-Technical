@@ -1,13 +1,14 @@
-"""Parts 2 and 3 against cell_counts.db.
+"""Parts 2 to 4 against cell_counts.db.
 
 Prints each result and also writes it to outputs/*.csv and to a result_* table
-in the database. `make pipeline` runs this after load_data.py.
+in the database so the dashboard can read it. `make pipeline` runs this after
+load_data.py.
 """
 import sys
 
 import pandas as pd
 
-from analysis import overview, stats
+from analysis import overview, stats, subsets
 from analysis.db import OUTPUT_DIR, connect, write_table
 
 pd.set_option("display.width", 140)
@@ -30,7 +31,7 @@ def fmt(value: float) -> str:
 
 
 def main() -> None:
-    """Run Parts 2 and 3, print them, and save them to outputs/ and the database."""
+    """Run Parts 2 to 4, print them, and save them to outputs/ and the database."""
     OUTPUT_DIR.mkdir(exist_ok=True)
     try:
         conn = connect()
@@ -66,6 +67,16 @@ def main() -> None:
             print(f"\nChange from time 0 to each subject's last sample (up to day {traj['final_time'].iloc[0]}):")
             print(traj[SHOW_TRAJ].to_string(index=False, float_format=fmt))
             print("\n" + stats.summarize(traj, "change_from_baseline"))
+
+        section("Part 4: melanoma PBMC baseline samples, miraclib-treated")
+        tables = subsets.run(conn=conn)
+        for name, df in tables.items():
+            write_table(df, f"result_{name}", conn)
+            df.to_csv(OUTPUT_DIR / f"part4_{name}.csv", index=False)
+        base = tables["baseline_samples"]
+        print(f"{len(base)} samples from {base['subject_key'].nunique()} subjects\n")
+        for name in ("baseline_by_project", "baseline_by_response", "baseline_by_sex"):
+            print(tables[name].to_string(index=False), "\n")
 
         conn.commit()
     finally:
